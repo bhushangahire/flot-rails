@@ -649,13 +649,16 @@ Licensed under the MIT license.
             }
 
             // give the hooks a chance to run
+            var bars_total_width = 0;
             for (i = 0; i < series.length; ++i) {
                 s = series[i];
 
                 executeHooks(hooks.processDatapoints, [ s, s.datapoints]);
+                bars_total_width += s.bars.barWidth;
             }
 
             // second pass: find datamax/datamin for auto-scaling
+            var bar_offset = 0;
             for (i = 0; i < series.length; ++i) {
                 s = series[i];
                 points = s.datapoints.points,
@@ -691,9 +694,13 @@ Licensed under the MIT license.
                 }
 
                 if (s.bars.show) {
+                    //store barLeft to prevent recalculation allowing overwrite in procDatapoints hook.
+                    if (s.bars.barLeft == undefined)
+                        s.bars.barLeft= s.bars.align == "left" ? bar_offset : bar_offset-bars_total_width/2;
+                    bar_offset += s.bars.barWidth;
+                    var delta = s.bars.barLeft;
                     // make sure we got room for the bar on the dancing floor
-                    var delta;
-
+                    /*var delta;
                     switch (s.bars.align) {
                         case "left":
                             delta = 0;
@@ -706,7 +713,7 @@ Licensed under the MIT license.
                             break;
                         default:
                             throw new Error("Invalid bar alignment: " + s.bars.align);
-                    }
+                    }*/                    
 
                     if (s.bars.horizontal) {
                         ymin += delta;
@@ -755,18 +762,18 @@ Licensed under the MIT license.
             var c = document.createElement('canvas');
             c.className = cls;
 
-			$(c).css({ direction: "ltr", position: "absolute", left: 0, top: 0 })
-				.appendTo(placeholder);
+            $(c).css({ direction: "ltr", position: "absolute", left: 0, top: 0 })
+                .appendTo(placeholder);
 
-			// If HTML5 Canvas isn't available, fall back to Excanvas
+            // If HTML5 Canvas isn't available, fall back to Excanvas
 
-			if (!c.getContext) {
-				if (window.G_vmlCanvasManager) {
-					c = window.G_vmlCanvasManager.initElement(c);
-				} else {
-					throw new Error("Canvas is not available. If you're using IE with a fall-back such as Excanvas, then there's either a mistake in your conditional include, or the page has no DOCTYPE and is rendering in Quirks Mode.");
-				}
-			}
+            if (!c.getContext) {
+                if (window.G_vmlCanvasManager) {
+                    c = window.G_vmlCanvasManager.initElement(c);
+                } else {
+                    throw new Error("Canvas is not available. If you're using IE with a fall-back such as Excanvas, then there's either a mistake in your conditional include, or the page has no DOCTYPE and is rendering in Quirks Mode.");
+                }
+            }
 
             var cctx = c.getContext("2d");
 
@@ -1324,21 +1331,21 @@ Licensed under the MIT license.
                     return ticks;
                 };
 
-				axis.tickFormatter = function (value, axis) {
+                axis.tickFormatter = function (value, axis) {
 
-					var factor = axis.tickDecimals ? Math.pow(10, axis.tickDecimals) : 1;
-					var formatted = "" + Math.round(value * factor) / factor;
+                    var factor = axis.tickDecimals ? Math.pow(10, axis.tickDecimals) : 1;
+                    var formatted = "" + Math.round(value * factor) / factor;
 
-					// If tickDecimals was specified, ensure that we have exactly that
-					// much precision; otherwise default to the value's own precision.
+                    // If tickDecimals was specified, ensure that we have exactly that
+                    // much precision; otherwise default to the value's own precision.
 
-					if (axis.tickDecimals != null) {
-						var decimal = formatted.indexOf(".");
-						var precision = decimal == -1 ? 0 : formatted.length - decimal - 1;
-						if (precision < axis.tickDecimals) {
-							return (precision ? formatted : formatted + ".") + ("" + factor).substr(1, axis.tickDecimals - precision);
-						}
-					}
+                    if (axis.tickDecimals != null) {
+                        var decimal = formatted.indexOf(".");
+                        var precision = decimal == -1 ? 0 : formatted.length - decimal - 1;
+                        if (precision < axis.tickDecimals) {
+                            return (precision ? formatted : formatted + ".") + ("" + factor).substr(1, axis.tickDecimals - precision);
+                        }
+                    }
 
                     return formatted;
                 };
@@ -2092,15 +2099,6 @@ Licensed under the MIT license.
                 sw = series.shadowSize,
                 radius = series.points.radius,
                 symbol = series.points.symbol;
-
-            // If the user sets the line width to 0, we change it to a very 
-            // small value. A line width of 0 seems to force the default of 1.
-            // Doing the conditional here allows the shadow setting to still be 
-            // optional even with a lineWidth of 0.
-
-            if( lw == 0 )
-                lw = 0.0001;
-
             if (lw > 0 && sw > 0) {
                 // draw shadow in two steps
                 var w = sw / 2;
@@ -2249,8 +2247,8 @@ Licensed under the MIT license.
             // FIXME: figure out a way to add shadows (for instance along the right edge)
             ctx.lineWidth = series.bars.lineWidth;
             ctx.strokeStyle = series.color;
-
-            var barLeft;
+            var barLeft = series.bars.barLeft;
+            /*var barLeft;
 
             switch (series.bars.align) {
                 case "left":
@@ -2264,7 +2262,7 @@ Licensed under the MIT license.
                     break;
                 default:
                     throw new Error("Invalid bar alignment: " + series.bars.align);
-            }
+            }*/
 
             var fillStyleCallback = series.bars.fill ? function (bottom, top) { return getFillStyle(series.bars, series.color, bottom, top); } : null;
             plotBars(series.datapoints, barLeft, barLeft + series.bars.barWidth, 0, fillStyleCallback, series.xaxis, series.yaxis);
@@ -2449,7 +2447,7 @@ Licensed under the MIT license.
                 }
 
                 if (s.bars.show && !item) { // no other point can be nearby
-                    var barLeft = s.bars.align == "left" ? 0 : -s.bars.barWidth/2,
+                    var barLeft = s.bars.barLeft,
                         barRight = barLeft + s.bars.barWidth;
 
                     for (j = 0; j < points.length; j += ps) {
@@ -2650,7 +2648,8 @@ Licensed under the MIT license.
             octx.lineWidth = series.bars.lineWidth;
             octx.strokeStyle = highlightColor;
 
-            drawBar(point[0], point[1], point[2] || 0, barLeft, barLeft + series.bars.barWidth,
+            //drawBar(point[0], point[1], point[2] || 0, barLeft, barLeft + series.bars.barWidth,
+            drawBar(point[0], point[1], point[2] || 0, series.bars.barLeft, series.bars.barLeft + series.bars.barWidth,
                     0, function () { return fillStyle; }, series.xaxis, series.yaxis, octx, series.bars.horizontal, series.bars.lineWidth);
         }
 
